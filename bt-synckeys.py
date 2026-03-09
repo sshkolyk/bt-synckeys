@@ -223,7 +223,8 @@ def process_advanced_pairing(adapter_config, adapter_mac, device_mac):
             )
 
     if "KeyLength" in adapter_config:
-        ltk_key_length = str(int(format_dword(adapter_config["KeyLength"]), 16))
+        key_len_raw = format_dword(adapter_config["KeyLength"])
+        ltk_key_length = str(int(key_len_raw, 16) or 16)
         if "LongTermKey" in paired_config:
             current_ltk_key_length = paired_config["LongTermKey"]["EncSize"]
             # preemptively setting the final value in the config, but not persisting
