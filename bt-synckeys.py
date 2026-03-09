@@ -293,9 +293,11 @@ def process_advanced_pairing(adapter_config, adapter_mac, device_mac):
         return
 
     action = input(f"    > Update keys for device? (y/N): ")
-    if action.lower() != "y":
+    if action.lower() == "y":
         update_system_pairing(adapter_mac, device_mac, paired_config)
         print(f"    > OK!")
+    else:
+        print("    > Omitted")
 
 
 def print_adapter_mac(current_adapter_mac):
