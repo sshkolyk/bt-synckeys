@@ -66,7 +66,7 @@ psexec -s -i regedit /e c:\keydump.reg HKEY_LOCAL_MACHINE\SYSTEM\ControlSet001\S
 - Copy the file from `c:\keydump.reg` into a removeable storage or a location which is accessible by your Linux system.
 - Reboot into your Linux system.
 - Copy the `keydump.reg` file to an accessible location in your Linux filesystem and reboot your PC again to linux.
-- Open a terminal and navigate to the location where `synckeys.py` is located.
+- Open a terminal and navigate to the location where `bt-synckeys.py` is located.
 - Run the `bt-synckeys.py` Python 3 script with **root** or **sudo**:
 ```
 sudo ./bt-synckeys.py -r /path/to/keydump.reg

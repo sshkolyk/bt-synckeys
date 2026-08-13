@@ -24,24 +24,48 @@ class WindowsRegistryRepository:
         self.keys_registry = self.load_windows_devices(keys_raw)
 
     def _export_registry(self, windows_root, registry_location, registry_file_path=None):
-        """Exports given registry key as text
+        """Returns the content of a Windows registry export as text.
+
+        Supports two sources:
+        - a .reg file exported from Windows (e.g. via regedit /e): read directly.
+        - a binary hive file (e.g. Windows/System32/config/SYSTEM): exported via reged.
+
         Args:
-            registry_file_path: registry file_path
+            windows_root (str): path to the root of the mounted Windows drive.
+                Ignored if registry_file_path is an absolute path.
             registry_location (str): key for export
+                Only used for binary hive files.
                 NOTE:   key should be relative to Hive file. For example, "ControlSet001" placed in root of "SYSTEM" file.
                         @see chntpw and reged manuals for details
+            registry_file_path (str): path to the .reg or hive file.
+                Defaults to WINDOWS_REGISTRY_PATH (binary hive).
 
         Returns:
             (str): content of registry
+
+        Raises:
+            ValueError: if a .reg file does not start with the expected Windows Registry Editor header.
         """
         if registry_file_path is None: registry_file_path = self.WINDOWS_REGISTRY_PATH
+        full_path = (
+            registry_file_path
+            if windows_root is None
+            else os.path.join(windows_root, registry_file_path)
+        )
+
+        if registry_file_path.lower().endswith(".reg"):
+            with open(full_path, "r", encoding="utf-16", errors="replace") as f:
+                if not f.readline().strip('\n').startswith("Windows Registry Editor"):
+                    raise ValueError(f"{full_path} does not appear to be a valid .reg file")
+                return f.read()
+
         with TemporaryDirectory() as temp_dir_name:
             exported_reg_filename = os.path.join(temp_dir_name, "exported.reg")
             # SAMPLE: reged -x ./Windows/System32/config/SYSTEM PREFIX "ControlSet001\Services\...." out.reg
             export_cmd = [
                 "reged",
                 "-x",
-                registry_file_path if windows_root is None else os.path.join(windows_root, registry_file_path),
+                full_path,
                 "HKEY_LOCAL_MACHINE\\SYSTEM",
                 registry_location,
                 exported_reg_filename,
@@ -143,9 +167,9 @@ class ProcessWindowKeys:
         process_parameter_by_key("IRK", "IdentityResolvingKey", "Key")
         process_parameter_by_key("CSRK", "LocalSignatureKey", "Key")
         process_parameter_by_key("LTK", keys_sections, "Key")
-        process_parameter_by_key("KeyLength", keys_sections, "EncSize", lambda v: str(int(RegistryParameterFormat.dword(v)) or 16))
-        process_parameter_by_key("EDIV", keys_sections, "EDiv", lambda v: str(int(RegistryParameterFormat.dword(v)) or 16))
-        process_parameter_by_key("ERand", keys_sections, "Rand", lambda v: str(int(RegistryParameterFormat.hex_b(v)) or 16))
+        process_parameter_by_key("KeyLength", keys_sections, "EncSize", lambda v: str(int(RegistryParameterFormat.dword(v), 16) or 16))
+        process_parameter_by_key("EDIV", keys_sections, "EDiv", lambda v: str(int(RegistryParameterFormat.dword(v), 16)))
+        process_parameter_by_key("ERand", keys_sections, "Rand", lambda v: str(int(RegistryParameterFormat.hex_b(v), 16)))
         require_update |= LinuxDeviceInfo.set_config_parameter(linux_config, "General", "Trusted", "true")
         require_update |= LinuxDeviceInfo.set_config_parameter(linux_config, "General", "Paired", "yes")
         require_update |= LinuxDeviceInfo.set_config_parameter(linux_config, "General", "Blocked", "false")
@@ -296,7 +320,7 @@ def parse_args():
     parser.add_argument(
         "-r",
         "--registry-file",
-        help="Path to the dumped Registry file. This options supercedes `-r` (`--windows-dir`)",
+        help="Path to the dumped Registry file. This options supercedes `-w` (`--windows-dir`)",
     )
     return parser.parse_args()
 
