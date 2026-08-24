@@ -111,7 +111,7 @@ class ProcessWindowKeys:
     def __init__(self, registry_repository):
         self.registry_repository = registry_repository
 
-    def _process_win_basic_pairing(self, window_device_keys, adapter_mac):
+    def _process_win_br_edr_pairing(self, window_device_keys, adapter_mac):
         # Iterate through each device and pairing key from the dumped registry config
         for device, windows_key in window_device_keys.items():
             if device.lower() == "masterirk": continue
@@ -140,7 +140,7 @@ class ProcessWindowKeys:
                 LinuxDeviceInfo.write_info(adapter_mac, device_mac, linux_config)
                 print(f"    > OK!")
 
-    def _process_win_advanced_pairing(self, windows_config, adapter_mac, device_mac):
+    def _process_win_ble_pairing(self, windows_config, adapter_mac, device_mac):
         # Check this adapter's paired devices in the current Linux system
         linux_config = LinuxDeviceInfo.get_info(adapter_mac, device_mac)
         LinuxDeviceInfo.print_device_info(linux_config, device_mac)
@@ -186,14 +186,14 @@ class ProcessWindowKeys:
                     adapter_mac = RegistryParameterFormat.mac_address(windows_device)
                     print_adapter_mac(adapter_mac)
                     # Launch basic pairing extraction and update
-                    self._process_win_basic_pairing(windows_devices[windows_device], adapter_mac)
+                    self._process_win_br_edr_pairing(windows_devices[windows_device], adapter_mac)
                 else:
                     mac_addresses = windows_device.split("\\")
                     adapter_mac = RegistryParameterFormat.mac_address(mac_addresses[0])
                     device_mac = RegistryParameterFormat.mac_address(mac_addresses[1])
                     print_adapter_mac(adapter_mac)
                     # Launch advanced pairing extraction and update
-                    self._process_win_advanced_pairing(windows_devices[windows_device], adapter_mac, device_mac)
+                    self._process_win_ble_pairing(windows_devices[windows_device], adapter_mac, device_mac)
             except ValueError as e:
                 print(f"! Skipping unexpected registry entry {windows_device!r}: {e}")
                 continue
