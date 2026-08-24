@@ -320,7 +320,7 @@ def parse_args():
     parser.add_argument(
         "-r",
         "--registry-file",
-        help="Path to the dumped Registry file. This options supercedes `-r` (`--windows-dir`)",
+        help="Path to the dumped Registry file. Ignored if `-w` (`--windows-dir`) is also given",
     )
     return parser.parse_args()
 
