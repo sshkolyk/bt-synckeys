@@ -16,12 +16,26 @@ _prev_adapter_mac = None
 
 class WindowsRegistryRepository:
     WINDOWS_REGISTRY_PATH = os.path.join("Windows", "System32", "config", "SYSTEM")
-    WINDOWS_BT_REGISTRY_KEYS_PATH = r"ControlSet001\Services\BTHPORT\Parameters\Keys"
+    WINDOWS_BT_REGISTRY_KEYS_PATH_TEMPLATE = r"{control_set}\Services\BTHPORT\Parameters\Keys"
+    DEFAULT_CONTROL_SET = "ControlSet001"
     keys_registry = None
 
     def __init__(self, windows_path=None, registry_file=None):
-        keys_raw = self._export_registry(windows_path, WindowsRegistryRepository.WINDOWS_BT_REGISTRY_KEYS_PATH, registry_file)
+        control_set = self._resolve_current_control_set(windows_path, registry_file)
+        keys_path = self.WINDOWS_BT_REGISTRY_KEYS_PATH_TEMPLATE.format(control_set=control_set)
+        keys_raw = self._export_registry(windows_path, keys_path, registry_file)
         self.keys_registry = self.load_windows_devices(keys_raw)
+
+    def _resolve_current_control_set(self, windows_root, registry_file_path):
+        """Determines the active ControlSet (HKLM\\SYSTEM\\Select\\Current), falling back to
+        DEFAULT_CONTROL_SET if it cannot be read."""
+        select_raw = self._export_registry(windows_root, "Select", registry_file_path)
+        match = re.search(r'(?im)^"?Current"?\s*=\s*dword:([0-9a-fA-F]+)', select_raw)
+        if not match:
+            print(f"WARNING: Could not determine active ControlSet from Select\\Current, falling back to {self.DEFAULT_CONTROL_SET}")
+            return self.DEFAULT_CONTROL_SET
+        current = int(match.group(1), 16)
+        return f"ControlSet{current:03d}"
 
     def _export_registry(self, windows_root, registry_location, registry_file_path=None):
         """Exports given registry key as text
