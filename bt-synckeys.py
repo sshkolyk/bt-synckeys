@@ -102,7 +102,11 @@ class ProcessWindowKeys:
         for device, windows_key in window_device_keys.items():
             if device.lower() == "masterirk": continue
 
-            device_mac = RegistryParameterFormat.mac_address(device)
+            try:
+                device_mac = RegistryParameterFormat.mac_address(device)
+            except ValueError as e:
+                print(f"    ! Skipping unexpected registry entry: {e}")
+                continue
             windows_key = RegistryParameterFormat.hex(windows_key)
 
             # Check this adapter's paired devices in the current Linux system
@@ -163,18 +167,22 @@ class ProcessWindowKeys:
         windows_devices = self.registry_repository.keys_registry
         # Sort the list of adapters and adapter\device pairs to make sequential grouping by adapter and parsing easier
         for windows_device in sorted(windows_devices.keys()):
-            if not "\\" in windows_device:
-                adapter_mac = RegistryParameterFormat.mac_address(windows_device)
-                print_adapter_mac(adapter_mac)
-                # Launch basic pairing extraction and update
-                self._process_win_basic_pairing(windows_devices[windows_device], adapter_mac)
-            else:
-                mac_addresses = windows_device.split("\\")
-                adapter_mac = RegistryParameterFormat.mac_address(mac_addresses[0])
-                device_mac = RegistryParameterFormat.mac_address(mac_addresses[1])
-                print_adapter_mac(adapter_mac)
-                # Launch advanced pairing extraction and update
-                self._process_win_advanced_pairing(windows_devices[windows_device], adapter_mac, device_mac)
+            try:
+                if not "\\" in windows_device:
+                    adapter_mac = RegistryParameterFormat.mac_address(windows_device)
+                    print_adapter_mac(adapter_mac)
+                    # Launch basic pairing extraction and update
+                    self._process_win_basic_pairing(windows_devices[windows_device], adapter_mac)
+                else:
+                    mac_addresses = windows_device.split("\\")
+                    adapter_mac = RegistryParameterFormat.mac_address(mac_addresses[0])
+                    device_mac = RegistryParameterFormat.mac_address(mac_addresses[1])
+                    print_adapter_mac(adapter_mac)
+                    # Launch advanced pairing extraction and update
+                    self._process_win_advanced_pairing(windows_devices[windows_device], adapter_mac, device_mac)
+            except ValueError as e:
+                print(f"! Skipping unexpected registry entry {windows_device!r}: {e}")
+                continue
 
 
 class RegistryParameterFormat:
@@ -196,6 +204,8 @@ class RegistryParameterFormat:
     @staticmethod
     def mac_address(mac_string):
         address = mac_string.upper()
+        if not re.fullmatch(r"[0-9A-F]{12}", address):
+            raise ValueError(f"Invalid MAC address in registry data: {mac_string!r}")
         address_parts = [address[i : i + 2] for i in range(0, len(address), 2)]
         return ":".join(address_parts)
 
