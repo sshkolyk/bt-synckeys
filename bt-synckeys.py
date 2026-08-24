@@ -266,7 +266,7 @@ class LinuxDeviceInfo:
 
     @staticmethod
     def print_device_info(device_config, device_mac):
-        if not device_config:
+        if not device_config.has_section("General"):
             print(f"  {device_mac} (# not paired #)")
             return
 
