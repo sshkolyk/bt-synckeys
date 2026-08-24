@@ -115,7 +115,7 @@ class ProcessWindowKeys:
             require_update |= LinuxDeviceInfo.set_config_parameter(linux_config, "General", "Paired", "yes")
             require_update |= LinuxDeviceInfo.set_config_parameter(linux_config, "General", "Blocked", "false")
 
-            if not require_update: return
+            if not require_update: continue
 
             action = input(f"    > Update keys for device? (y/N): ")
             if action.lower() == "y":
