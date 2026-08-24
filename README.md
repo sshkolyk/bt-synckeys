@@ -53,24 +53,23 @@ sudo systemctl restart bluetooth
 ### Method B. Dump keys from Windows and sync to Linux
 #### Additional Prequisites
 
-On Windows you need the following:
-1. [PSExec](http://live.sysinternals.com/psexec.exe) downloaded and accessible via the command line. E.g. downloaded to the root of your C:\ drive.
-2. **Administrator** access.
+On Windows you need **Administrator** access. No third-party tools are required — `reg save` is built into Windows.
 
 ### Steps
 - Reboot into your Windows system and pair the same devices again. We will use the keys generated from this OS.
-- Open a command prompt in **Administrator** mode and navigate to the directory where you downloaded [PSExec](http://live.sysinternals.com/psexec.exe) into. Run the following command to dump the keys:
+- Open a command prompt in **Administrator** mode and run the following command to save a copy of the registry hive:
 ```
-psexec -s -i regedit /e c:\keydump.reg HKEY_LOCAL_MACHINE\SYSTEM\ControlSet001\Services\BTHPORT\Parameters\Keys
+reg save HKLM\SYSTEM C:\system.hive
 ```
-- Copy the file from `c:\keydump.reg` into a removeable storage or a location which is accessible by your Linux system.
+- Copy the file from `C:\system.hive` into a removeable storage or a location which is accessible by your Linux system.
 - Reboot into your Linux system.
-- Copy the `keydump.reg` file to an accessible location in your Linux filesystem and reboot your PC again to linux.
-- Open a terminal and navigate to the location where `synckeys.py` is located.
+- Copy the `system.hive` file to an accessible location in your Linux filesystem.
+- Open a terminal and navigate to the location where `bt-synckeys.py` is located.
 - Run the `bt-synckeys.py` Python 3 script with **root** or **sudo**:
 ```
-sudo ./bt-synckeys.py -r /path/to/keydump.reg
+sudo ./bt-synckeys.py -r /path/to/system.hive
 ```
+> **NOTE:** `-r` expects a raw registry hive file (as produced by `reg save`), not a text `.reg` export — the script parses it internally with `reged` (from `chntpw`, same as Method A). Make sure `chntpw` is installed on the Linux system as well.
 - The adapters and devices from the key dump will be compared to the pairing in Linux and if a difference is detected, it will prompt you to update the keys. You can choose Yes or No (default). If you choose `Yes`, a timestamped backup file is created in the `/var/lib/bluetooth/{ADAPTER_MAC}/{DEVICE_MAC}` directory before the update is performed.
 ```
 Bluetooth Adapter - 7C:B2:7D:57:EA:D5
