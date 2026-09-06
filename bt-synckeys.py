@@ -426,16 +426,32 @@ def find_mounted_windows_root():
     """Look for an already-mounted Windows partition (containing Windows/System32/config/SYSTEM)
     among the currently mounted filesystems. Returns its mount point, or None if there isn't
     exactly one candidate."""
+    # Virtual/pseudo filesystems that are pointless to check and not worth the risk of
+    # stat()-ing something like a stale/unreachable network mount.
+    SKIP_FSTYPES = {
+        "proc", "sysfs", "devtmpfs", "devpts", "tmpfs", "cgroup", "cgroup2",
+        "pstore", "securityfs", "debugfs", "tracefs", "mqueue", "hugetlbfs",
+        "configfs", "fusectl", "bpf", "autofs", "binfmt_misc", "efivarfs",
+        "overlay", "squashfs", "nsfs", "nfs", "nfs4", "cifs",
+    }
     try:
         with open("/proc/mounts") as f:
-            mount_points = {line.split()[1] for line in f}
+            mount_lines = [line.split() for line in f]
     except OSError:
         return None
 
-    candidates = [
-        mount_point for mount_point in mount_points
-        if os.path.isfile(os.path.join(mount_point, WindowsRegistryRepository.WINDOWS_REGISTRY_PATH))
-    ]
+    mount_points = {
+        parts[1] for parts in mount_lines
+        if len(parts) >= 3 and parts[2] not in SKIP_FSTYPES
+    }
+
+    candidates = []
+    for mount_point in mount_points:
+        try:
+            if os.path.isfile(os.path.join(mount_point, WindowsRegistryRepository.WINDOWS_REGISTRY_PATH)):
+                candidates.append(mount_point)
+        except OSError:
+            continue
 
     if len(candidates) == 1:
         return candidates[0]
