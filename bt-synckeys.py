@@ -17,14 +17,41 @@ _prev_adapter_mac = None
 class WindowsRegistryRepository:
     WINDOWS_REGISTRY_PATH = os.path.join("Windows", "System32", "config", "SYSTEM")
     WINDOWS_BT_REGISTRY_KEYS_PATH_TEMPLATE = r"{control_set}\Services\BTHPORT\Parameters\Keys"
+    WINDOWS_BT_REGISTRY_DEVICES_PATH_TEMPLATE = r"{control_set}\Services\BTHPORT\Parameters\Devices"
     DEFAULT_CONTROL_SET = "ControlSet001"
     keys_registry = None
+    device_names = None
 
     def __init__(self, windows_path=None, registry_file=None):
         control_set = self._resolve_current_control_set(windows_path, registry_file)
         keys_path = self.WINDOWS_BT_REGISTRY_KEYS_PATH_TEMPLATE.format(control_set=control_set)
         keys_raw = self._export_registry(windows_path, keys_path, registry_file)
         self.keys_registry = self.load_windows_devices(keys_raw)
+        self.device_names = self._load_device_names(windows_path, control_set, registry_file)
+
+    def _load_device_names(self, windows_root, control_set, registry_file_path) -> dict:
+        """Best-effort lookup of device_mac -> friendly name, read from the sibling
+        Devices registry key (flat, keyed by device MAC, holding a "Name" REG_BINARY
+        value with a null-terminated ASCII/UTF-8 string) - not the Keys key used for
+        pairing material."""
+        devices_path = self.WINDOWS_BT_REGISTRY_DEVICES_PATH_TEMPLATE.format(control_set=control_set)
+        try:
+            devices_raw = self._export_registry(windows_root, devices_path, registry_file_path)
+            devices_registry = self.load_windows_devices(devices_raw)
+        except Exception as e:
+            print(f"WARNING: Could not read device names from registry: {e}")
+            return {}
+
+        names = {}
+        for section, values in devices_registry.items():
+            if "Name" not in values:
+                continue
+            try:
+                device_mac = RegistryParameterFormat.mac_address(section.split("\\")[-1])
+                names[device_mac] = RegistryParameterFormat.ascii(values["Name"])
+            except ValueError:
+                continue
+        return names
 
     def _resolve_current_control_set(self, windows_root, registry_file_path):
         """Determines the active ControlSet (HKLM\\SYSTEM\\Select\\Current), falling back to
@@ -67,6 +94,9 @@ class WindowsRegistryRepository:
         return exported_text
 
     def load_windows_devices(self, contents: str, prefix=None) -> dict:
+        # .reg export wraps long values across lines with a trailing "\" - join them
+        # back into one line before parsing, otherwise the value gets truncated.
+        contents = re.sub(r"\\\r?\n\s*", "", contents)
         contents = contents.replace('"', "")
 
         contents = re.sub(
@@ -128,6 +158,9 @@ class ProcessWindowKeys:
             LinuxDeviceInfo.print_device_info(linux_config, device_mac)
             require_update = False
 
+            if not linux_config.get("General", "Name", fallback=None):
+                device_name = self.registry_repository.device_names.get(device_mac, device_mac)
+                require_update |= LinuxDeviceInfo.set_config_parameter(linux_config, "General", "Name", device_name)
             require_update |= LinuxDeviceInfo.set_config_parameter(linux_config, "LinkKey", "Key", windows_key)
             require_update |= LinuxDeviceInfo.set_config_parameter(linux_config, "General", "Trusted", "true")
             require_update |= LinuxDeviceInfo.set_config_parameter(linux_config, "General", "Paired", "yes")
@@ -141,10 +174,24 @@ class ProcessWindowKeys:
                 print(f"    > OK!")
 
     def _process_win_ble_pairing(self, windows_config, adapter_mac, device_mac):
+        # BLE devices can rotate their random address between OSes, so a device previously
+        # synced/paired under an old MAC may now show up under a new one. Syncing from
+        # scratch under the new MAC already works on its own; a matching IRK guarantees
+        # it's the same physical device, so we clean up the old MAC's leftover entry.
+        if "IRK" in windows_config:
+            irk = RegistryParameterFormat.hex(windows_config["IRK"])
+            for stale_mac in LinuxDeviceInfo.find_stale_by_irk(adapter_mac, irk, device_mac):
+                print(f"    > Removing stale Linux entry {stale_mac} (same IRK, old MAC)")
+                LinuxDeviceInfo.remove(adapter_mac, stale_mac)
+
         # Check this adapter's paired devices in the current Linux system
         linux_config = LinuxDeviceInfo.get_info(adapter_mac, device_mac)
         LinuxDeviceInfo.print_device_info(linux_config, device_mac)
         require_update = False
+
+        if not linux_config.get("General", "Name", fallback=None):
+            device_name = self.registry_repository.device_names.get(device_mac, device_mac)
+            require_update |= LinuxDeviceInfo.set_config_parameter(linux_config, "General", "Name", device_name)
 
         def process_parameter_by_key(win_key: str, section, key: str, value_callback=RegistryParameterFormat.hex) -> None:
             if not win_key in windows_config: return
@@ -162,8 +209,18 @@ class ProcessWindowKeys:
         process_parameter_by_key("CSRK", "LocalSignatureKey", "Key")
         process_parameter_by_key("LTK", keys_sections, "Key")
         process_parameter_by_key("KeyLength", keys_sections, "EncSize", lambda v: str(int(RegistryParameterFormat.dword(v), 16) or 16))
-        process_parameter_by_key("EDIV", keys_sections, "EDiv", lambda v: str(int(RegistryParameterFormat.dword(v), 16) or 16))
-        process_parameter_by_key("ERand", keys_sections, "Rand", lambda v: str(int(RegistryParameterFormat.hex_b(v), 16) or 16))
+        # EDIV/Rand are legitimately 0 for LE Secure Connections pairing - BlueZ appears to use
+        # EDiv==0 && Rand==0 as the signal that a key is SC-derived, so don't paper over real zeros here.
+        process_parameter_by_key("EDIV", keys_sections, "EDiv", lambda v: str(int(RegistryParameterFormat.dword(v), 16)))
+        process_parameter_by_key("ERand", keys_sections, "Rand", lambda v: str(int(RegistryParameterFormat.hex_b(v), 16)))
+        # BlueZ needs to know whether this is a public or a static random address to
+        # actually connect to it - without it, LE devices using a random address (like
+        # most modern mice/keyboards) may fail to reconnect even with correct keys.
+        process_parameter_by_key("AddressType", "General", "AddressType", lambda v: "static" if int(RegistryParameterFormat.dword(v), 16) else "public")
+        # BlueZ can default this to "BR/EDR;" when it first creates the device entry,
+        # before it knows better - which makes it page as classic and never try LE at all.
+        # This is a BLE-only entry, so force it to LE.
+        require_update |= LinuxDeviceInfo.set_config_parameter(linux_config, "General", "SupportedTechnologies", "LE;")
         require_update |= LinuxDeviceInfo.set_config_parameter(linux_config, "General", "Trusted", "true")
         require_update |= LinuxDeviceInfo.set_config_parameter(linux_config, "General", "Paired", "yes")
         require_update |= LinuxDeviceInfo.set_config_parameter(linux_config, "General", "Blocked", "false")
@@ -205,6 +262,11 @@ class RegistryParameterFormat:
         return hex_string.replace("hex:", "").replace(",", "").upper()
 
     @staticmethod
+    def ascii(hex_string):
+        raw_bytes = bytes.fromhex(RegistryParameterFormat.hex(hex_string))
+        return raw_bytes.decode("utf-8", errors="replace").rstrip("\x00")
+
+    @staticmethod
     def hex_b(hex_string):
         hex_parts = hex_string.replace("hex(b):", "").split(",")
         hex_parts.reverse()
@@ -228,6 +290,27 @@ class LinuxDeviceInfo:
     @staticmethod
     def get_path(adapter_mac, device_mac):
         return f"/var/lib/bluetooth/{adapter_mac}/{device_mac}"
+
+    @staticmethod
+    def find_stale_by_irk(adapter_mac, irk, exclude_mac):
+        """Find other paired Linux devices under this adapter with a matching IRK.
+        Used to clean up leftover entries from BLE devices that rotated their
+        random address between OSes (same physical device, old MAC)."""
+        adapter_path = f"/var/lib/bluetooth/{adapter_mac}"
+        if not os.path.isdir(adapter_path):
+            return []
+        matches = []
+        for entry in os.listdir(adapter_path):
+            if entry == exclude_mac:
+                continue
+            config = LinuxDeviceInfo.get_info(adapter_mac, entry)
+            if config.get("IdentityResolvingKey", "Key", fallback=None) == irk:
+                matches.append(entry)
+        return matches
+
+    @staticmethod
+    def remove(adapter_mac, device_mac):
+        shutil.rmtree(LinuxDeviceInfo.get_path(adapter_mac, device_mac), ignore_errors=True)
 
     @staticmethod
     def backup_linux_info_file(adapter_mac, device_mac):

@@ -22,14 +22,10 @@ For either of the methods to work, **you need to have the Bluetooth devices pair
 Do note, however, that **it's not necessary to have the devices connected to your system at the time of the procedures.**
 But it **is** necessary to have the device **working on Windows** prior to running the script, as it will read the pairing keys from the Windows registry.
 
-### Additional Prerequisites for BLE devices
-If you are trying to sync a BLE device since modern BLE devices alter their MAC address with each new pairing. Hence, your script won't find the in OS1 paired device in OS2. 
+### Notes for BLE devices
+Modern BLE devices rotate their random MAC address on each new pairing, so the MAC address Windows recorded may differ from whatever MAC Linux paired with before. This isn't a problem: the script creates the device entry from scratch under the Windows-reported MAC regardless of any prior Linux pairing.
 
-In order to resolve this problem, just copy the setup in OS2 (Linux) to a folder with the MAC address as used in windows helps:
-```
-sudo cp -r /var/lib/bluetooth/<adapter>/<in-linux-paired-MAC> /var/lib/bluetooth/<adapter>/<in-windows-paired-MAC>
-```
->**NOTE:** To get `<adapter>` MAC address, just type on a terminal `bluetoothctl` and then type `list` and for `<in-linux-paired-MAC>` inside `bluetoothctl` >type devices and search for the desired MAC address of the device. Finally, for `<in-windows-paired-MAC>` search in the `keydump.reg` file the same (except >for one digit) MAC address. After changing those address, run the command.
+If the device was already paired with Linux under a different, now-stale MAC (same device, matching Identity Resolving Key), the script automatically removes that leftover entry so it doesn't linger as a dead duplicate.
 
 
 ### Method A. Dump and sync keys from within Linux
