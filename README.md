@@ -16,6 +16,7 @@ Python script to sync Bluetooth pairing keys from Windows to your Linux installa
 - BLE devices: syncs address type (public/static) and forces the LE technology flag — without these, BlueZ may fail to connect even with fully correct keys.
 - BLE devices: pulls the real device name from the Windows registry instead of leaving it blank.
 - BLE devices: cleans up leftover entries left behind by MAC rotation (matched by Identity Resolving Key).
+- No need to manually restart the bluetooth service — the script does it for you, trying systemd, SysV init and OpenRC.
 
 ## Warning / Disclaimer
 > The code and instructions within this project accesses and modifies system files on your Windows and Linux installations. Although care has been taken to ensure that nothing harmful happens, there could be a risk of damage to your software and hardware. Your usage of the program and instructions herein constitutes acceptance of those risks and the author cannot be held liable for any claims whatsoever.
@@ -49,7 +50,7 @@ sudo ./bt-synckeys.py -w /path/to/windows/drive/root
 ```
 The root path should be the root of your Windows drive, i.e. there's a `Windows` folder in it.
 - Follow the prompts.
-- Once the keys are updated, you can restart the bluetooth service with the following (or the equivalent on your system):
+- Once the keys are updated, the script automatically restarts the bluetooth service so the changes take effect — no manual step needed. If it can't (e.g. an unrecognized init system), it'll tell you to restart it yourself:
 ```
 sudo systemctl restart bluetooth
 ```
@@ -91,7 +92,7 @@ Bluetooth Adapter - 7C:B2:7D:57:EA:D5
     > Update keys for device? (y/N): y
     > OK!
 ```
-- Once the keys are updated, you can restart the bluetooth service with the following (or the equivalent on your system):
+- Once the keys are updated, the script automatically restarts the bluetooth service so the changes take effect — no manual step needed. If it can't (e.g. an unrecognized init system), it'll tell you to restart it yourself:
 ```
 sudo systemctl restart bluetooth
 ```

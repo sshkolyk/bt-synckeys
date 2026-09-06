@@ -140,6 +140,7 @@ class ProcessWindowKeys:
 
     def __init__(self, registry_repository):
         self.registry_repository = registry_repository
+        self.any_update = False
 
     def _process_win_br_edr_pairing(self, window_device_keys, adapter_mac):
         # Iterate through each device and pairing key from the dumped registry config
@@ -171,6 +172,7 @@ class ProcessWindowKeys:
             action = input(f"    > Update keys for device? (y/N): ")
             if action.lower() == "y":
                 LinuxDeviceInfo.write_info(adapter_mac, device_mac, linux_config)
+                self.any_update = True
                 print(f"    > OK!")
 
     def _process_win_ble_pairing(self, windows_config, adapter_mac, device_mac):
@@ -230,6 +232,7 @@ class ProcessWindowKeys:
         action = input(f"    > Update keys for device? (y/N): ")
         if action.lower() == "y":
             LinuxDeviceInfo.write_info(adapter_mac, device_mac, linux_config)
+            self.any_update = True
             print(f"    > OK!")
         else:
             print("    > Omitted")
@@ -391,6 +394,32 @@ def print_adapter_mac(current_adapter_mac):
     _prev_adapter_mac = current_adapter_mac
 
 
+def restart_bluetooth_service() -> bool:
+    """Try a handful of known ways to restart the bluetooth service, covering the
+    common init systems. Never raises - only ever returns whether one of them
+    reported success, so the script itself never crashes over this."""
+    candidates = [
+        ["systemctl", "restart", "bluetooth"],
+        ["systemctl", "restart", "bluetooth.service"],
+        ["service", "bluetooth", "restart"],
+        ["rc-service", "bluetooth", "restart"],
+        ["/etc/init.d/bluetooth", "restart"],
+    ]
+    for cmd in candidates:
+        binary = cmd[0]
+        if not os.path.isabs(binary) and shutil.which(binary) is None:
+            continue
+        if os.path.isabs(binary) and not os.path.isfile(binary):
+            continue
+        try:
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+        except Exception:
+            continue
+        if result.returncode == 0:
+            return True
+    return False
+
+
 def parse_args():
     parser = argparse.ArgumentParser(
         description="SyncKeys - Update Linux Bluetooth keys from Windows-paired devices"
@@ -424,7 +453,17 @@ def __main__():
         return 1
 
     registry_repository = WindowsRegistryRepository(args.windows_dir, args.registry_file)
-    ProcessWindowKeys(registry_repository).process_windows_devices()
+    processor = ProcessWindowKeys(registry_repository)
+    processor.process_windows_devices()
+
+    if processor.any_update:
+        print()
+        print("Restarting bluetooth service to apply changes...")
+        if restart_bluetooth_service():
+            print("Done.")
+        else:
+            print("! Could not restart the bluetooth service automatically - please restart it manually, e.g.:")
+            print("  sudo systemctl restart bluetooth")
     return 0
 
 
