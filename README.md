@@ -18,6 +18,7 @@ Python script to sync Bluetooth pairing keys from Windows to your Linux installa
 - BLE devices: cleans up leftover entries left behind by MAC rotation (matched by Identity Resolving Key).
 - No need to manually restart the bluetooth service — the script does it for you, trying systemd, SysV init and OpenRC.
 - Added `-y`/`--yes` to apply all detected updates without the `(y/N)` confirmation prompt, for unattended/automated runs.
+- Auto-detects an already-mounted Windows partition, so Method A works with no arguments at all when your Windows drive is already mounted.
 
 ## Warning / Disclaimer
 > The code and instructions within this project accesses and modifies system files on your Windows and Linux installations. Although care has been taken to ensure that nothing harmful happens, there could be a risk of damage to your software and hardware. Your usage of the program and instructions herein constitutes acceptance of those risks and the author cannot be held liable for any claims whatsoever.
@@ -50,7 +51,12 @@ Pass `-y`/`--yes` to apply every detected update automatically, without the `(y/
   - Debian/Ubuntu: `sudo apt install chntpw`
 
 This method requires at least read-only access to your Windows drive in Linux.
-- Run the `bt-synckeys.py` Python 3 script with **root** or **sudo**:
+- Mount your Windows drive somewhere accessible.
+- Run the `bt-synckeys.py` Python 3 script with **root** or **sudo**. If your Windows drive is already mounted, you can just run it without any arguments — it'll auto-detect the mount point:
+```
+sudo ./bt-synckeys.py
+```
+Otherwise, point it at the root explicitly:
 ```
 sudo ./bt-synckeys.py -w /path/to/windows/drive/root
 ```

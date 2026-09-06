@@ -421,6 +421,30 @@ def restart_bluetooth_service() -> bool:
     return False
 
 
+def find_mounted_windows_root():
+    """Look for an already-mounted Windows partition (containing Windows/System32/config/SYSTEM)
+    among the currently mounted filesystems. Returns its mount point, or None if there isn't
+    exactly one candidate."""
+    try:
+        with open("/proc/mounts") as f:
+            mount_points = {line.split()[1] for line in f}
+    except OSError:
+        return None
+
+    candidates = [
+        mount_point for mount_point in mount_points
+        if os.path.isfile(os.path.join(mount_point, WindowsRegistryRepository.WINDOWS_REGISTRY_PATH))
+    ]
+
+    if len(candidates) == 1:
+        return candidates[0]
+    if len(candidates) > 1:
+        print("WARNING: Multiple mounted Windows partitions found, please pick one with -w:")
+        for candidate in candidates:
+            print(f"  {candidate}")
+    return None
+
+
 def parse_args():
     parser = argparse.ArgumentParser(
         description="SyncKeys - Update Linux Bluetooth keys from Windows-paired devices"
@@ -449,6 +473,11 @@ def __main__():
         print("ERROR: You need to be root to be able to run this script.")
         return 1
     args = parse_args()
+    if not args.windows_dir and not args.registry_file:
+        args.windows_dir = find_mounted_windows_root()
+        if args.windows_dir:
+            print(f"Auto-detected mounted Windows partition at {args.windows_dir}")
+
     if args.windows_dir:
         print(f"Using Windows root {args.windows_dir}")
     elif args.registry_file:
