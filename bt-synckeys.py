@@ -442,7 +442,8 @@ def find_mounted_windows_root():
     try:
         with open("/proc/mounts") as f:
             mount_lines = [line.split() for line in f]
-    except OSError:
+    except OSError as e:
+        print(f"WARNING: Could not read /proc/mounts, skipping auto-detection: {e}")
         return None
 
     mount_points = {
@@ -455,7 +456,8 @@ def find_mounted_windows_root():
         try:
             if os.path.isfile(os.path.join(mount_point, WindowsRegistryRepository.WINDOWS_REGISTRY_PATH)):
                 candidates.append(mount_point)
-        except OSError:
+        except OSError as e:
+            print(f"WARNING: Could not check {mount_point}, skipping it: {e}")
             continue
 
     if len(candidates) == 1:
