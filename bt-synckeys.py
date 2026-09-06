@@ -135,7 +135,7 @@ class WindowsRegistryRepository:
         return dict(data)
 
 
-class ProcessWindowKeys:
+class ProcessWindowsRegistryKeys:
     registry_repository: WindowsRegistryRepository = None
 
     def __init__(self, registry_repository, auto_confirm=False):
@@ -238,7 +238,7 @@ class ProcessWindowKeys:
         else:
             print("    > Omitted")
 
-    def process_windows_devices(self):
+    def run(self):
         windows_devices = self.registry_repository.keys_registry
         # Sort the list of adapters and adapter\device pairs to make sequential grouping by adapter and parsing easier
         for windows_device in sorted(windows_devices.keys()):
@@ -489,8 +489,8 @@ def __main__():
         return 1
 
     registry_repository = WindowsRegistryRepository(args.windows_dir, args.registry_file)
-    processor = ProcessWindowKeys(registry_repository, auto_confirm=args.yes)
-    processor.process_windows_devices()
+    processor = ProcessWindowsRegistryKeys(registry_repository, auto_confirm=args.yes)
+    processor.run()
 
     if processor.any_update:
         print()
