@@ -27,6 +27,12 @@ Python script to sync Bluetooth pairing keys from Windows to your Linux installa
 * Python 3.6+
 * **sudo** / **root** access.
 
+## Quick install
+```
+sudo wget https://raw.githubusercontent.com/sshkolyk/bt-synckeys/master/bt-synckeys.py -O /usr/local/bin/bt-synckeys && sudo chmod +x /usr/local/bin/bt-synckeys
+```
+Lets you run it as just `sudo bt-synckeys` from anywhere. Alternatively, clone this repo and run `./bt-synckeys.py` directly (used in the examples below).
+
 ## Usage
 For either of the methods to work, **you need to have the Bluetooth devices paired with Windows system**. This is necessary to create the required initial pairing configurations.
 
@@ -49,6 +55,9 @@ Pass `-y`/`--yes` to apply every detected update automatically, without the `(y/
 * `chntpw` 
   - Arch: `sudo pacman -S chntpw`
   - Debian/Ubuntu: `sudo apt install chntpw`
+  - Fedora: `sudo dnf install chntpw`
+  - RHEL: `sudo dnf install epel-release && sudo dnf install chntpw`
+  - openSUSE: `sudo zypper install chntpw`
 
 This method requires at least read-only access to your Windows drive in Linux.
 - Mount your Windows drive somewhere accessible.

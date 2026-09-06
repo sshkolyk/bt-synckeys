@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 import configparser
 import argparse
@@ -472,6 +472,14 @@ def __main__():
     if not os.geteuid() == 0:
         print("ERROR: You need to be root to be able to run this script.")
         return 1
+    if shutil.which("reged") is None:
+        print("ERROR: `reged` was not found. Install `chntpw` first, e.g.:")
+        print("  Arch:          sudo pacman -S chntpw")
+        print("  Debian/Ubuntu: sudo apt install chntpw")
+        print("  Fedora:        sudo dnf install chntpw")
+        print("  RHEL:          sudo dnf install epel-release && sudo dnf install chntpw")
+        print("  openSUSE:      sudo zypper install chntpw")
+        return 1
     args = parse_args()
     if not args.windows_dir and not args.registry_file:
         args.windows_dir = find_mounted_windows_root()
@@ -484,7 +492,9 @@ def __main__():
         print(f"Reading from Registry file {args.registry_file}")
     else:
         print(
-            "ERROR: You must specify either a Windows directory (-w) or a Registry file (-r)"
+            "ERROR: You must specify either a Windows directory (-w) or a Registry file (-r).\n"
+            "       If you have a Windows partition, mount it anywhere (e.g. `sudo mount /dev/sdXN /mnt/win`)\n"
+            "       and either pass that path via -w, or just re-run without arguments to auto-detect it."
         )
         return 1
 
