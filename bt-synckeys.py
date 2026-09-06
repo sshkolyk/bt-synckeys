@@ -340,7 +340,12 @@ class LinuxDeviceInfo:
 
         if os.path.isfile(info_file):
             # Read info data into a config structure
-            pairing_config.read(info_file)
+            try:
+                pairing_config.read(info_file)
+            except configparser.Error as e:
+                print(f"WARNING: Could not parse {info_file}, treating as unpaired: {e}")
+                pairing_config = configparser.ConfigParser()
+                pairing_config.optionxform = str
         return pairing_config
 
     @staticmethod
