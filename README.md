@@ -3,11 +3,19 @@ bt-synckeys
 Python script to sync Bluetooth pairing keys from Windows to your Linux installations.
 **Now don't need to pair device in Linux for successful sync*
 
-## Credits
-- https://wiki.archlinux.org/title/Bluetooth#Dual_boot_pairing
-- https://github.com/x2es/bt-dualboot for the original implementation.
-- https://github.com/ademlabs/synckeys for properly handling BT5.1 and BLE devices
-- https://github.com/wochap/synckeys for handling devices without LTK (Long Term Key)
+## Changes in this fork
+### Fixes
+- Fixed the update confirmation prompt: it used to be inverted, applying the update on any answer OTHER than "y" (including just pressing Enter), and doing nothing when you actually answered "y".
+- Auto-detects the active ControlSet instead of assuming `ControlSet001`.
+- Rejects malformed/unexpected registry entries instead of misbehaving on them.
+
+### Improvements
+- No need to manually create the device's `/var/lib/bluetooth/<adapter>/<device>` directory or copy an existing pairing folder — the script creates it from scratch under the correct MAC.
+- No need to pair in Linux first, then Windows, then back to Linux, and so on — pair once in Windows and run the script; that's it.
+- BLE devices: `KeyLength` falls back to 16 when Windows reports it as 0 — a known Windows registry quirk; a real key length is never 0, and leaving it as 0 makes BlueZ treat the encryption key as invalid.
+- BLE devices: syncs address type (public/static) and forces the LE technology flag — without these, BlueZ may fail to connect even with fully correct keys.
+- BLE devices: pulls the real device name from the Windows registry instead of leaving it blank.
+- BLE devices: cleans up leftover entries left behind by MAC rotation (matched by Identity Resolving Key).
 
 ## Warning / Disclaimer
 > The code and instructions within this project accesses and modifies system files on your Windows and Linux installations. Although care has been taken to ensure that nothing harmful happens, there could be a risk of damage to your software and hardware. Your usage of the program and instructions herein constitutes acceptance of those risks and the author cannot be held liable for any claims whatsoever.
@@ -45,7 +53,6 @@ The root path should be the root of your Windows drive, i.e. there's a `Windows`
 ```
 sudo systemctl restart bluetooth
 ```
-- Enjoy :D
 ### Method B. Dump keys from Windows and sync to Linux
 #### Additional Prequisites
 
@@ -88,4 +95,3 @@ Bluetooth Adapter - 7C:B2:7D:57:EA:D5
 ```
 sudo systemctl restart bluetooth
 ```
-- Enjoy :D
