@@ -138,8 +138,9 @@ class WindowsRegistryRepository:
 class ProcessWindowKeys:
     registry_repository: WindowsRegistryRepository = None
 
-    def __init__(self, registry_repository):
+    def __init__(self, registry_repository, auto_confirm=False):
         self.registry_repository = registry_repository
+        self.auto_confirm = auto_confirm
         self.any_update = False
 
     def _process_win_br_edr_pairing(self, window_device_keys, adapter_mac):
@@ -169,7 +170,7 @@ class ProcessWindowKeys:
 
             if not require_update: continue
 
-            action = input(f"    > Update keys for device? (y/N): ")
+            action = "y" if self.auto_confirm else input(f"    > Update keys for device? (y/N): ")
             if action.lower() == "y":
                 LinuxDeviceInfo.write_info(adapter_mac, device_mac, linux_config)
                 self.any_update = True
@@ -229,7 +230,7 @@ class ProcessWindowKeys:
 
         if not require_update: return
 
-        action = input(f"    > Update keys for device? (y/N): ")
+        action = "y" if self.auto_confirm else input(f"    > Update keys for device? (y/N): ")
         if action.lower() == "y":
             LinuxDeviceInfo.write_info(adapter_mac, device_mac, linux_config)
             self.any_update = True
@@ -434,6 +435,12 @@ def parse_args():
         "--registry-file",
         help="Path to the dumped Registry file. Ignored if `-w` (`--windows-dir`) is also given",
     )
+    parser.add_argument(
+        "-y",
+        "--yes",
+        action="store_true",
+        help="Apply all detected updates without asking for confirmation (for unattended/automated runs)",
+    )
     return parser.parse_args()
 
 
@@ -453,7 +460,7 @@ def __main__():
         return 1
 
     registry_repository = WindowsRegistryRepository(args.windows_dir, args.registry_file)
-    processor = ProcessWindowKeys(registry_repository)
+    processor = ProcessWindowKeys(registry_repository, auto_confirm=args.yes)
     processor.process_windows_devices()
 
     if processor.any_update:

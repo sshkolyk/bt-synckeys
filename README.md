@@ -17,6 +17,7 @@ Python script to sync Bluetooth pairing keys from Windows to your Linux installa
 - BLE devices: pulls the real device name from the Windows registry instead of leaving it blank.
 - BLE devices: cleans up leftover entries left behind by MAC rotation (matched by Identity Resolving Key).
 - No need to manually restart the bluetooth service — the script does it for you, trying systemd, SysV init and OpenRC.
+- Added `-y`/`--yes` to apply all detected updates without the `(y/N)` confirmation prompt, for unattended/automated runs.
 
 ## Warning / Disclaimer
 > The code and instructions within this project accesses and modifies system files on your Windows and Linux installations. Although care has been taken to ensure that nothing harmful happens, there could be a risk of damage to your software and hardware. Your usage of the program and instructions herein constitutes acceptance of those risks and the author cannot be held liable for any claims whatsoever.
@@ -36,6 +37,11 @@ Modern BLE devices rotate their random MAC address on each new pairing, so the M
 
 If the device was already paired with Linux under a different, now-stale MAC (same device, matching Identity Resolving Key), the script automatically removes that leftover entry so it doesn't linger as a dead duplicate.
 
+### Unattended runs
+Pass `-y`/`--yes` to apply every detected update automatically, without the `(y/N)` confirmation prompt — useful for scripted or automated runs.
+
+> [!WARNING]
+> The script has no way of knowing which side (Windows or Linux) actually has the more recent pairing. It always treats the Windows registry as the source of truth. With `-y`, if you paired or re-paired a device directly in Linux more recently than in Windows, those newer Linux keys will be silently overwritten with the older Windows ones. Only use `-y` when you're sure Windows is the freshly-paired side.
 
 ### Method A. Dump and sync keys from within Linux
 #### Additional Prerequisites
