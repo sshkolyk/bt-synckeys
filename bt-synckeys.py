@@ -76,18 +76,19 @@ class WindowsRegistryRepository:
             (str): content of registry
         """
         if registry_file_path is None: registry_file_path = self.WINDOWS_REGISTRY_PATH
+        full_path = registry_file_path if windows_root is None else os.path.join(windows_root, registry_file_path)
+        if not os.path.isfile(full_path):
+            raise FileNotFoundError(f"Could not find the Windows registry file at {full_path!r} - check your -w/-r path")
+
         with TemporaryDirectory() as temp_dir_name:
             exported_reg_filename = os.path.join(temp_dir_name, "exported.reg")
             # SAMPLE: reged -x ./Windows/System32/config/SYSTEM PREFIX "ControlSet001\Services\...." out.reg
-            export_cmd = [
-                "reged",
-                "-x",
-                registry_file_path if windows_root is None else os.path.join(windows_root, registry_file_path),
-                "HKEY_LOCAL_MACHINE\\SYSTEM",
-                registry_location,
-                exported_reg_filename,
-            ]
-            subprocess.run(export_cmd)
+            export_cmd = ["reged", "-x", full_path, "HKEY_LOCAL_MACHINE\\SYSTEM", registry_location, exported_reg_filename]
+            result = subprocess.run(export_cmd, capture_output=True, text=True)
+
+            if not os.path.isfile(exported_reg_filename):
+                details = result.stderr.strip() or result.stdout.strip() or "no output"
+                raise RuntimeError(f"reged failed to export {registry_location!r} from {full_path!r}: {details}")
 
             with open(exported_reg_filename, "r") as f:
                 exported_text = f.read()
@@ -498,7 +499,11 @@ def __main__():
         )
         return 1
 
-    registry_repository = WindowsRegistryRepository(args.windows_dir, args.registry_file)
+    try:
+        registry_repository = WindowsRegistryRepository(args.windows_dir, args.registry_file)
+    except (FileNotFoundError, RuntimeError) as e:
+        print(f"ERROR: {e}")
+        return 1
     processor = ProcessWindowsRegistryKeys(registry_repository, auto_confirm=args.yes)
     processor.run()
 
