@@ -1,0 +1,56 @@
+name: GitHub Pages
+
+on:
+  push:
+    branches:
+      - master
+    paths:
+      - README.md
+      - docs/**
+      - .github/workflows/pages.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    name: Deploy documentation
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v5
+
+      - name: Configure Pages
+        uses: actions/configure-pages@v5
+
+      - name: Prepare documentation
+        run: |
+          mkdir .pages-source
+          cp -R docs/. .pages-source/
+          cp LICENSE .pages-source/LICENSE
+          printf '%s\n' '---' 'layout: default' '---' > .pages-source/index.md
+          sed 's#](LICENSE)#](https://github.com/sshkolyk/bt-synckeys/blob/master/LICENSE)#' README.md >> .pages-source/index.md
+
+      - name: Build documentation
+        uses: actions/jekyll-build-pages@v1
+        with:
+          source: ./.pages-source
+          destination: ./_site
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

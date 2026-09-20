@@ -493,6 +493,7 @@ def parse_args():
 
 
 def __main__():
+    args = parse_args()
     if not os.geteuid() == 0:
         print("ERROR: You need to be root to be able to run this script.")
         return 1
@@ -504,7 +505,6 @@ def __main__():
         print("  RHEL:          sudo dnf install epel-release && sudo dnf install chntpw")
         print("  openSUSE:      sudo zypper install chntpw")
         return 1
-    args = parse_args()
     if not args.windows_dir and not args.registry_file:
         args.windows_dir = find_mounted_windows_root()
         if args.windows_dir:

@@ -1,0 +1,9 @@
+title: Bluetooth Keys Sync
+description: >-
+  Synchronize Bluetooth pairing keys from Windows to Linux for dual-boot systems.
+url: https://sshkolyk.github.io
+baseurl: /bt-synckeys
+repository: sshkolyk/bt-synckeys
+theme: minima
+plugins:
+  - jekyll-seo-tag

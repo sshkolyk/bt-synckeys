@@ -1,7 +1,10 @@
-bt-synckeys
----
-Python script to sync Bluetooth pairing keys from Windows to your Linux installations.
-**Now don't need to pair device in Linux for successful sync*
+# bt-synckeys
+
+Python script to sync Bluetooth BR/EDR and BLE pairing keys from Windows to
+Linux installations. Devices only need to be paired in Windows; no prior Linux
+pairing is required.
+
+[View the repository on GitHub](https://github.com/sshkolyk/bt-synckeys)
 
 ## Changes in this fork
 ### Fixes
@@ -24,7 +27,7 @@ Python script to sync Bluetooth pairing keys from Windows to your Linux installa
 > The code and instructions within this project accesses and modifies system files on your Windows and Linux installations. Although care has been taken to ensure that nothing harmful happens, there could be a risk of damage to your software and hardware. Your usage of the program and instructions herein constitutes acceptance of those risks and the author cannot be held liable for any claims whatsoever.
 
 ## Prerequisites 
-* Python 3.6+
+* Python 3.7+
 * **sudo** / **root** access.
 
 ## Quick install
