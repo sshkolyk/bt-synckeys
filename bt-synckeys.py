@@ -164,6 +164,7 @@ class ProcessWindowsRegistryKeys:
             if not linux_config.get("General", "Name", fallback=None):
                 device_name = self.registry_repository.device_names.get(device_mac, device_mac)
                 require_update |= LinuxDeviceInfo.set_config_parameter(linux_config, "General", "Name", device_name)
+            require_update |= LinuxDeviceInfo.update_supported_technologies(linux_config, "BR/EDR")
             require_update |= LinuxDeviceInfo.set_config_parameter(linux_config, "LinkKey", "Key", windows_key)
             require_update |= LinuxDeviceInfo.set_config_parameter(linux_config, "General", "Trusted", "true")
             require_update |= LinuxDeviceInfo.set_config_parameter(linux_config, "General", "Paired", "yes")
@@ -224,7 +225,7 @@ class ProcessWindowsRegistryKeys:
         # BlueZ can default this to "BR/EDR;" when it first creates the device entry,
         # before it knows better - which makes it page as classic and never try LE at all.
         # This is a BLE-only entry, so force it to LE.
-        require_update |= LinuxDeviceInfo.set_config_parameter(linux_config, "General", "SupportedTechnologies", "LE;")
+        require_update |= LinuxDeviceInfo.update_supported_technologies(linux_config, "LE")
         require_update |= LinuxDeviceInfo.set_config_parameter(linux_config, "General", "Trusted", "true")
         require_update |= LinuxDeviceInfo.set_config_parameter(linux_config, "General", "Paired", "yes")
         require_update |= LinuxDeviceInfo.set_config_parameter(linux_config, "General", "Blocked", "false")
@@ -376,6 +377,25 @@ class LinuxDeviceInfo:
         linux_config.set(section, key, value)
         return print_updated_values(section + "." + key, old_value, value)
 
+    @staticmethod
+    def get_config_parameter(linux_config: configparser.ConfigParser, section: str, key: str, default_value=None):
+        if not linux_config.has_section(section) or not linux_config.has_option(section, key):
+            return default_value
+        return linux_config.get(section, key, fallback=default_value)
+
+    @staticmethod
+    def update_supported_technologies(linux_config: configparser.ConfigParser, technology: str):
+        if technology not in ['BR/EDR', 'LE']:
+            raise ValueError(f"Invalid bluetooth technology: {technology}")
+        actual_technologies = LinuxDeviceInfo.get_config_parameter(linux_config, 'General', 'SupportedTechnologies')
+        actual_technologies = actual_technologies.strip(';').split(';') if actual_technologies not in [None, "", ";"] else []
+        if technology in actual_technologies:
+            return False
+        actual_technologies.append(technology)
+        actual_technologies = set(actual_technologies)
+        actual_technologies = ";".join(actual_technologies)
+        if not actual_technologies.isspace(): actual_technologies += ";"
+        return LinuxDeviceInfo.set_config_parameter(linux_config, "General", "SupportedTechnologies", actual_technologies)
 
 
 def print_updated_values(name: str, current_value: str, new_value: str) -> bool:
