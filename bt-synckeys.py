@@ -224,7 +224,6 @@ class ProcessWindowsRegistryKeys:
         process_parameter_by_key("AddressType", "General", "AddressType", lambda v: "static" if int(RegistryParameterFormat.dword(v), 16) else "public")
         # BlueZ can default this to "BR/EDR;" when it first creates the device entry,
         # before it knows better - which makes it page as classic and never try LE at all.
-        # This is a BLE-only entry, so force it to LE.
         require_update |= linux_config.update_supported_technologies("LE")
         require_update |= linux_config.set_parameter("General", "Trusted", "true")
         require_update |= linux_config.set_parameter("General", "Paired", "yes")
@@ -360,8 +359,8 @@ class LinuxDeviceInfo:
                 self.pairing_config.read(info_file)
             except configparser.Error as e:
                 print(f"WARNING: Could not parse {info_file}, treating as unpaired: {e}")
-                pairing_config = configparser.ConfigParser()
-                pairing_config.optionxform = str
+                self.pairing_config = configparser.ConfigParser(interpolation=None, strict=False)
+                self.pairing_config.optionxform = str
 
     def set_parameter(self, section: str, key: str, value: str):
         if not self.pairing_config.has_section(section):
