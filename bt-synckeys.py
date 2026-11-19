@@ -186,8 +186,13 @@ class ProcessWindowsRegistryKeys:
         if "IRK" in windows_config:
             irk = RegistryParameterFormat.hex(windows_config["IRK"])
             for stale_mac in LinuxDeviceInfo.find_stale_by_irk(adapter_mac, irk, device_mac):
-                print(f"    > Removing stale Linux entry {stale_mac} (same IRK, old MAC)")
-                LinuxDeviceInfo(adapter_mac, stale_mac).remove()
+                ans = "y" if self.auto_confirm else input(
+                    f"    > Remove stale entry {stale_mac} (same IRK, old MAC)? (y/N): ")
+                if ans.lower() == "y":
+                    print(f"    > Removing stale Linux entry {stale_mac} (same IRK, old MAC)")
+                    LinuxDeviceInfo(adapter_mac, stale_mac).remove()
+                    self.any_update = True
+
 
         # Check this adapter's paired devices in the current Linux system
         linux_config = LinuxDeviceInfo(adapter_mac, device_mac)
@@ -530,6 +535,7 @@ def __main__():
 
     if args.windows_dir:
         print(f"Using Windows root {args.windows_dir}")
+        args.registry_file = None
     elif args.registry_file:
         print(f"Reading from Registry file {args.registry_file}")
     else:
