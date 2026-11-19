@@ -157,24 +157,24 @@ class ProcessWindowsRegistryKeys:
             windows_key = RegistryParameterFormat.hex(windows_key)
 
             # Check this adapter's paired devices in the current Linux system
-            linux_config = LinuxDeviceInfo.get_info(adapter_mac, device_mac)
-            LinuxDeviceInfo.print_device_info(linux_config, device_mac)
+            linux_config = LinuxDeviceInfo(adapter_mac, device_mac)
+            linux_config.print_device_info()
             require_update = False
 
-            if not linux_config.get("General", "Name", fallback=None):
+            if not linux_config.get_parameter("General", "Name"):
                 device_name = self.registry_repository.device_names.get(device_mac, device_mac)
-                require_update |= LinuxDeviceInfo.set_config_parameter(linux_config, "General", "Name", device_name)
-            require_update |= LinuxDeviceInfo.update_supported_technologies(linux_config, "BR/EDR")
-            require_update |= LinuxDeviceInfo.set_config_parameter(linux_config, "LinkKey", "Key", windows_key)
-            require_update |= LinuxDeviceInfo.set_config_parameter(linux_config, "General", "Trusted", "true")
-            require_update |= LinuxDeviceInfo.set_config_parameter(linux_config, "General", "Paired", "yes")
-            require_update |= LinuxDeviceInfo.set_config_parameter(linux_config, "General", "Blocked", "false")
+                require_update |= linux_config.set_parameter("General", "Name", device_name)
+            require_update |= linux_config.update_supported_technologies("BR/EDR")
+            require_update |= linux_config.set_parameter("LinkKey", "Key", windows_key)
+            require_update |= linux_config.set_parameter("General", "Trusted", "true")
+            require_update |= linux_config.set_parameter("General", "Paired", "yes")
+            require_update |= linux_config.set_parameter("General", "Blocked", "false")
 
             if not require_update: continue
 
             action = "y" if self.auto_confirm else input(f"    > Update keys for device? (y/N): ")
             if action.lower() == "y":
-                LinuxDeviceInfo.write_info(adapter_mac, device_mac, linux_config)
+                linux_config.write_info()
                 self.any_update = True
                 print(f"    > OK!")
 
@@ -187,16 +187,16 @@ class ProcessWindowsRegistryKeys:
             irk = RegistryParameterFormat.hex(windows_config["IRK"])
             for stale_mac in LinuxDeviceInfo.find_stale_by_irk(adapter_mac, irk, device_mac):
                 print(f"    > Removing stale Linux entry {stale_mac} (same IRK, old MAC)")
-                LinuxDeviceInfo.remove(adapter_mac, stale_mac)
+                LinuxDeviceInfo(adapter_mac, stale_mac).remove()
 
         # Check this adapter's paired devices in the current Linux system
-        linux_config = LinuxDeviceInfo.get_info(adapter_mac, device_mac)
-        LinuxDeviceInfo.print_device_info(linux_config, device_mac)
+        linux_config = LinuxDeviceInfo(adapter_mac, device_mac)
+        linux_config.print_device_info()
         require_update = False
 
-        if not linux_config.get("General", "Name", fallback=None):
+        if not linux_config.get_parameter("General", "Name"):
             device_name = self.registry_repository.device_names.get(device_mac, device_mac)
-            require_update |= LinuxDeviceInfo.set_config_parameter(linux_config, "General", "Name", device_name)
+            require_update |= linux_config.set_parameter("General", "Name", device_name)
 
         def process_parameter_by_key(win_key: str, section, key: str, value_callback=RegistryParameterFormat.hex) -> None:
             if not win_key in windows_config: return
@@ -207,7 +207,7 @@ class ProcessWindowsRegistryKeys:
                 section = [section]
             for s in section:
                 nonlocal require_update
-                require_update |= LinuxDeviceInfo.set_config_parameter(linux_config, s, key, value)
+                require_update |= linux_config.set_parameter(s, key, value)
 
         keys_sections = ["LongTermKey", "SlaveLongTermKey", "PeripheralLongTermKey"]
         process_parameter_by_key("IRK", "IdentityResolvingKey", "Key")
@@ -225,16 +225,16 @@ class ProcessWindowsRegistryKeys:
         # BlueZ can default this to "BR/EDR;" when it first creates the device entry,
         # before it knows better - which makes it page as classic and never try LE at all.
         # This is a BLE-only entry, so force it to LE.
-        require_update |= LinuxDeviceInfo.update_supported_technologies(linux_config, "LE")
-        require_update |= LinuxDeviceInfo.set_config_parameter(linux_config, "General", "Trusted", "true")
-        require_update |= LinuxDeviceInfo.set_config_parameter(linux_config, "General", "Paired", "yes")
-        require_update |= LinuxDeviceInfo.set_config_parameter(linux_config, "General", "Blocked", "false")
+        require_update |= linux_config.update_supported_technologies("LE")
+        require_update |= linux_config.set_parameter("General", "Trusted", "true")
+        require_update |= linux_config.set_parameter("General", "Paired", "yes")
+        require_update |= linux_config.set_parameter("General", "Blocked", "false")
 
         if not require_update: return
 
         action = "y" if self.auto_confirm else input(f"    > Update keys for device? (y/N): ")
         if action.lower() == "y":
-            LinuxDeviceInfo.write_info(adapter_mac, device_mac, linux_config)
+            linux_config.write_info()
             self.any_update = True
             print(f"    > OK!")
         else:
@@ -293,9 +293,8 @@ class RegistryParameterFormat:
 
 
 class LinuxDeviceInfo:
-    @staticmethod
-    def get_path(adapter_mac, device_mac):
-        return f"/var/lib/bluetooth/{adapter_mac}/{device_mac}"
+    def get_device_path(self):
+        return f"/var/lib/bluetooth/{self.adapter_mac}/{self.device_mac}"
 
     @staticmethod
     def find_stale_by_irk(adapter_mac, irk, exclude_mac):
@@ -309,93 +308,93 @@ class LinuxDeviceInfo:
         for entry in os.listdir(adapter_path):
             if entry == exclude_mac:
                 continue
-            config = LinuxDeviceInfo.get_info(adapter_mac, entry)
-            if config.get("IdentityResolvingKey", "Key", fallback=None) == irk:
+            config = LinuxDeviceInfo(adapter_mac, entry)
+            if config.get_parameter("IdentityResolvingKey", "Key") == irk:
                 matches.append(entry)
         return matches
 
-    @staticmethod
-    def remove(adapter_mac, device_mac):
-        shutil.rmtree(LinuxDeviceInfo.get_path(adapter_mac, device_mac), ignore_errors=True)
+    def remove(self):
+        shutil.rmtree(self.get_device_path())
 
-    @staticmethod
-    def backup_linux_info_file(adapter_mac, device_mac):
-        device_path = LinuxDeviceInfo.get_path(adapter_mac, device_mac)
+    def backup_linux_info_file(self):
+        device_info_path = self.get_device_path()
         now = datetime.now()
         current_datetime = now.strftime("%Y%m%d%H%M%S")
-        if os.path.isfile(device_path):
-            os.remove(device_path)
-        if not os.path.isdir(device_path):
-            os.makedirs(device_path)
-        if os.path.isfile(f"{device_path}/info"):
-            shutil.copyfile(f"{device_path}/info", f"{device_path}/info-{current_datetime}")
+        if os.path.isfile(device_info_path):
+            os.remove(device_info_path)
+        if not os.path.isdir(device_info_path):
+            os.makedirs(device_info_path)
+        if os.path.isfile(f"{device_info_path}/info"):
+            shutil.copyfile(f"{device_info_path}/info", f"{device_info_path}/info-{current_datetime}")
 
+    def write_info(self):
+        self.backup_linux_info_file()
+        # Write config structure back to info file
+        device_path = self.get_device_path()
+        info_file = open(f"{device_path}/info", "w")
+        self.pairing_config.write(info_file)
+        info_file.close()
 
-    @staticmethod
-    def get_info(adapter_mac, device_mac):
-        device_path = LinuxDeviceInfo.get_path(adapter_mac, device_mac)
+    def print_device_info(self):
+        if not self.pairing_config.has_section("General"):
+            print(f"  {self.device_mac} (# not paired #)")
+            return
+
+        # Get paired device name
+        device_name = self.pairing_config.get("General", "Name", fallback="# No name #")
+        device_alias = self.pairing_config.get("General", "Alias", fallback="# No alias #")
+        print(f"\n  {self.device_mac} ({device_name} / {device_alias})")
+
+    def __init__(self, adapter_mac, device_mac):
+        self.adapter_mac = adapter_mac
+        self.device_mac = device_mac
+        device_path = self.get_device_path()
         info_file = f"{device_path}/info"
 
-        pairing_config = configparser.ConfigParser()
-        pairing_config.optionxform = str
+        self.pairing_config = configparser.ConfigParser()
+        self.pairing_config.optionxform = str
 
         if os.path.isfile(info_file):
-            # Read info data into a config structure
+        # Read info data into a config structure
             try:
-                pairing_config.read(info_file)
+                self.pairing_config.read(info_file)
             except configparser.Error as e:
                 print(f"WARNING: Could not parse {info_file}, treating as unpaired: {e}")
                 pairing_config = configparser.ConfigParser()
                 pairing_config.optionxform = str
-        return pairing_config
 
-    @staticmethod
-    def write_info(adapter_mac, device_mac, config):
-        LinuxDeviceInfo.backup_linux_info_file(adapter_mac, device_mac)
-        # Write config structure back to info file
-        device_path = LinuxDeviceInfo.get_path(adapter_mac, device_mac)
-        info_file = open(f"{device_path}/info", "w")
-        config.write(info_file)
-        info_file.close()
-
-    @staticmethod
-    def print_device_info(device_config, device_mac):
-        if not device_config.has_section("General"):
-            print(f"  {device_mac} (# not paired #)")
-            return
-
-        # Get paired device name
-        device_name = device_config.get("General", "Name", fallback="# No name #")
-        device_alias = device_config.get("General", "Alias", fallback="# No alias #")
-        print(f"\n  {device_mac} ({device_name} / {device_alias})")
-
-    @staticmethod
-    def set_config_parameter(linux_config: configparser.ConfigParser, section: str, key: str, value: str):
-        if not linux_config.has_section(section):
-            linux_config.add_section(section)
-        old_value = linux_config.get(section, key, fallback=None)
-        linux_config.set(section, key, value)
+    def set_parameter(self, section: str, key: str, value: str):
+        if not self.pairing_config.has_section(section):
+            self.pairing_config.add_section(section)
+        old_value = self.pairing_config.get(section, key, fallback=None)
+        self.pairing_config.set(section, key, value)
         return print_updated_values(section + "." + key, old_value, value)
 
-    @staticmethod
-    def get_config_parameter(linux_config: configparser.ConfigParser, section: str, key: str, default_value=None):
-        if not linux_config.has_section(section) or not linux_config.has_option(section, key):
+    def get_parameter(self, section: str, key: str, default_value=None):
+        if not self.pairing_config.has_section(section) or not self.pairing_config.has_option(section, key):
             return default_value
-        return linux_config.get(section, key, fallback=default_value)
+        return self.pairing_config.get(section, key, fallback=default_value)
 
-    @staticmethod
-    def update_supported_technologies(linux_config: configparser.ConfigParser, technology: str):
+    def remove_parameter(self, section: str, key: str):
+        if not self.pairing_config.has_section(section) or not self.pairing_config.has_option(section, key):
+            return False
+        self.pairing_config.remove_option(section, key)
+        return True
+
+    def update_supported_technologies(self, technology: str):
         if technology not in ['BR/EDR', 'LE']:
             raise ValueError(f"Invalid bluetooth technology: {technology}")
-        actual_technologies = LinuxDeviceInfo.get_config_parameter(linux_config, 'General', 'SupportedTechnologies')
+        actual_technologies = self.get_parameter('General', 'SupportedTechnologies')
         actual_technologies = actual_technologies.strip(';').split(';') if actual_technologies not in [None, "", ";"] else []
         if technology in actual_technologies:
             return False
         actual_technologies.append(technology)
         actual_technologies = set(actual_technologies)
         actual_technologies = ";".join(actual_technologies)
-        if not actual_technologies.isspace(): actual_technologies += ";"
-        return LinuxDeviceInfo.set_config_parameter(linux_config, "General", "SupportedTechnologies", actual_technologies)
+        if actual_technologies not in [None, "", ";"]:
+            return self.set_parameter("General", "SupportedTechnologies", actual_technologies + ";")
+        else:
+            return self.remove_parameter("General", "SupportedTechnologies")
 
 
 def print_updated_values(name: str, current_value: str, new_value: str) -> bool:
