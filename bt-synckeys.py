@@ -355,7 +355,7 @@ class LinuxDeviceInfo:
         device_path = self.get_device_path()
         info_file = f"{device_path}/info"
 
-        self.pairing_config = configparser.ConfigParser()
+        self.pairing_config = configparser.ConfigParser(interpolation=None, strict=False)
         self.pairing_config.optionxform = str
 
         if os.path.isfile(info_file):
@@ -449,6 +449,12 @@ def restart_bluetooth_service() -> bool:
             return True
     return False
 
+def unescape_mount_path(path):
+    return re.sub(
+        r'\\([0-7]{3})',
+        lambda m: chr(int(m.group(1), 8)),
+        path
+    )
 
 def find_mounted_windows_root():
     """Look for an already-mounted Windows partition (containing Windows/System32/config/SYSTEM)
@@ -470,7 +476,7 @@ def find_mounted_windows_root():
         return None
 
     mount_points = {
-        parts[1] for parts in mount_lines
+        unescape_mount_path(parts[1]) for parts in mount_lines
         if len(parts) >= 3 and parts[2] not in SKIP_FSTYPES
     }
 
